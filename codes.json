@@ -1,0 +1,56 @@
+{
+    "PSERPW0C": {
+        "points": 50,
+        "used": false,
+        "max_uses": 1,
+        "used_count": 0,
+        "used_by": [],
+        "used_at": null,
+        "created_at": "2026-05-18T10:30:30.791551",
+        "created_by": 1489001988
+    },
+    "811JRYBA": {
+        "points": 100,
+        "used": true,
+        "max_uses": 1,
+        "used_count": 1,
+        "used_by": [
+            "1489001988"
+        ],
+        "used_at": "2026-05-18T10:37:33.240204",
+        "created_at": "2026-05-18T10:35:20.644965",
+        "created_by": 1489001988
+    },
+    "0PWQ9I3O": {
+        "points": 100,
+        "used": false,
+        "max_uses": 2,
+        "used_count": 1,
+        "used_by": [
+            "1489001988"
+        ],
+        "used_at": "2026-05-18T10:38:24.209866",
+        "created_at": "2026-05-18T10:37:59.050247",
+        "created_by": 1489001988
+    },
+    "F153V0ZX": {
+        "points": 50,
+        "used": false,
+        "max_uses": 2,
+        "used_count": 0,
+        "used_by": [],
+        "used_at": null,
+        "created_at": "2026-05-18T10:49:35.075695",
+        "created_by": 1489001988
+    },
+    "R46LRHC2": {
+        "points": 100,
+        "used": false,
+        "max_uses": 2,
+        "used_count": 0,
+        "used_by": [],
+        "used_at": null,
+        "created_at": "2026-05-18T11:30:49.729533",
+        "created_by": 1489001988
+    }
+}
