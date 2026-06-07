@@ -12,7 +12,7 @@ def generate_random_email():
     number = ''.join(random.choices(string.digits, k=4))
     return f"{name}{number}@gmail.com"
 
-def stripe3(card_data):
+def Stripe3(card_data):
     """
     فحص بطاقة (Stripe Auth) على موقع 400pizzahallgreen.co
     card_data: رقم|شهر|سنة|cvv
@@ -200,6 +200,6 @@ if __name__ == '__main__':
     # اختبار السكريبت
     test_card = "5294158321468738|12|2026|904"
     print(f"\n🚀 اختبار فحص بطاقة على 400pizzahallgreen.co")
-    result = stripe_auth_400pizza(test_card)
+    result = Stripe3(test_card)
     print(f"\n📇 Card: {test_card}")
     print(f"📊 Result: {result}")
