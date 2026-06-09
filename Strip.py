@@ -240,6 +240,6 @@ def await_braintree_flow(session, site_url, client_nonce, n, mm, yy, cvc):
 
 if __name__ == '__main__':
     test_card = "5294158321468738|12|2026|904"
-    result = regent_academy_check(test_card)
+    result = Stripe1(test_card)
     print(f"\n📇 Card: {test_card}")
     print(f"📊 Result: {result}")
